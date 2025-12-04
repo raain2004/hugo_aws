@@ -28,7 +28,7 @@ chapter: false
 
 &emsp; **Internship Duration:** From 12/08/2025 to 12/11/2025
 
-![Your profile picture](/images/image.png)
+![Your profile picture](C:\Users\vugam\Downloads\hugo_aws-main\static\images\image.png)
 
 ### Report Content
 
