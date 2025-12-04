@@ -7,17 +7,17 @@ pre: "<b> 1.7. </b>"
 
 # Báo cáo thực tập
 ### Thông tin sinh viên:
-&emsp; **Họ và tên:** Lê Trọng Nhân
+&emsp; **Họ và tên:** Bùi Văn Vũ
 
-&emsp; **Số điện thoại:** SE190515
+&emsp; **Số điện thoại:** 0353380809
 
-&emsp; **Email:** nhanle221199@gmail.com
+&emsp; **Email:** vubui.cv2021@gmail.com
 
 &emsp; **Trường:** Đại học FPT TP.HCM
 
 &emsp; **Ngành:** Công nghệ thông tin
 
-&emsp; **Lớp:** SE190525
+&emsp; **Lớp:** SE180080
 
 &emsp; **Công ty thực tập:** Công ty TNHH Amazon Web Services Vietnam
 

@@ -10,17 +10,17 @@ chapter: false
 
 
 ### Student Information:
-&emsp; **Full Name:** Lê Trọng Nhân
+&emsp; **Full Name:** Bùi Văn Vũ
 
-&emsp; **Phone Number:** 0397609967 
+&emsp; **Phone Number:** 0353380809
 
-&emsp; **Email:** nhanle221199@gmail.com
+&emsp; **Email:** vubui.cv2021@gmail.com
 
 &emsp; **University:** FPT University
 
 &emsp; **Major:** Artificial Intelligence
 
-&emsp; **Class:** SE190525
+&emsp; **Id:** SE180080
 
 &emsp; **Internship Company:** Amazon Web Services Vietnam Co., Ltd.
 
