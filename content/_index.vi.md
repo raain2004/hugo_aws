@@ -17,15 +17,15 @@ pre: "<b> 1.7. </b>"
 
 &emsp; **Ngành:** Công nghệ thông tin
 
-&emsp; **Lớp:** SE180080
+&emsp; **Id:** SE180080
 
 &emsp; **Công ty thực tập:** Công ty TNHH Amazon Web Services Vietnam
 
 &emsp; **Vị trí thực tập:** FCJ Cloud Intern
 
-&emsp; **Thời gian thực tập:** Từ ngày 12/08/2025 đến ngày 12/11/2025
+&emsp; **Thời gian thực tập:** Từ ngày 8/09/2025 đến ngày 12/11/2025
 
-![Ảnh đại diện của bạn](C:\Users\vugam\Downloads\hugo_aws-main\static\images\image.png)
+![Ảnh đại diện của bạn](static\images\avatar.jpg)
 
 
 

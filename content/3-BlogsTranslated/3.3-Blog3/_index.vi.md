@@ -1,199 +1,225 @@
 ---
-title: "Hướng dẫn tinh chỉnh cho Amazon EC2 instances dùng AMD"
+title: "Triển khai các chiến lược áp dụng AWS Graviton nâng cao trên các AWS Regions"
 weight: 3
 chapter: false
 pre: " <b> 3.3. </b> "
 ---
 
-# **Hướng dẫn tinh chỉnh cho Amazon EC2 instances dùng AMD**
+**Triển khai các chiến lược áp dụng AWS Graviton nâng cao trên các AWS Regions**
 
-bởi Suyash Nadkarni và Dylan Souvage vào ngày 12 THÁNG 9 2025 trong [Amazon EC2](https://aws.amazon.com/blogs/compute/category/compute/amazon-ec2/), [Best Practices](https://aws.amazon.com/blogs/compute/category/post-types/best-practices/), [Expert (400)](https://aws.amazon.com/blogs/compute/category/learning-levels/expert-400/), [Technical](https://aws.amazon.com/blogs/compute/category/post-types/technical-how-to/)
+  Bởi Matt Howard | vào ngày 26 tháng 8 năm 2025 | trong [Advanced (300)](https://aws.amazon.com/blogs/compute/category/learning-levels/advanced-300/), [Amazon EC2](https://aws.amazon.com/blogs/compute/category/compute/amazon-ec2/), [Best Practices](https://aws.amazon.com/blogs/compute/category/post-types/best-practices/), [Graviton](https://aws.amazon.com/blogs/compute/category/compute/graviton/) | [Permalink](https://aws.amazon.com/blogs/compute/implementing-advanced-aws-graviton-adoption-strategies-across-aws-regions/) | [Share](https://aws.amazon.com/vi/blogs/compute/implementing-advanced-aws-graviton-adoption-strategies-across-aws-regions/ )
 
-Khi các tổ chức di chuyển nhiều khối lượng công việc quan trọng sang đám mây, tối ưu hóa về **giá — hiệu suất (price-performance)** trở thành một cân nhắc chủ chốt. Các instance [Amazon Elastic Compute Cloud](https://aws.amazon.com/pm/ec2/)(Amazon EC2) sử dụng bộ xử lý [AMD EPYC](https://aws.amazon.com/ec2/amd/)  đem lại mật độ lõi cao, băng thông bộ nhớ lớn và các tính năng bảo mật được hỗ trợ phần cứng, khiến chúng trở thành một lựa chọn mạnh mẽ cho nhiều loại khối lượng công việc tính toán, bộ nhớ hoặc I/O. Trong bài viết này, chúng tôi giải thích cách chọn loại instance Amazon EC2 dựa trên AMD phù hợp và mô tả các kỹ thuật điều chỉnh có thể giúp người dùng cải thiện hiệu quả khối lượng công việc. Cho dù bạn đang chạy mô phỏng, phân tích quy mô lớn hoặc các khối lượng inference, bài viết này cung cấp hướng dẫn thực tiễn để tối ưu hóa instance Amazon EC2 dùng AMD.
+Triển khai các chiến lược áp dụng AWS Graviton nâng cao trên các AWS Regions bởi Matt Howard vào ngày 26 AUG 2025 trong Advanced (300), Amazon EC2, Best Practices, Graviton Permalink Share
 
-Amazon EC2 cung cấp instances AMD dựa trên nhiều thế hệ AMD EPYC. Bài viết tập trung vào chiến lược tối ưu cho thế hệ 3 và 4, vốn tăng cường khả năng cho workload tính toán và bộ nhớ chuyên sâu.
+[AWS Graviton Processors](https://aws.amazon.com/ec2/graviton/) có thể mang lại tiết kiệm chi phí, cải thiện hiệu suất và giảm lượng khí thải carbon khi sử dụng các [Amazon Elastic Compute Cloud (Amazon EC2)](https://aws.amazon.com/ec2/) instances. Khi mở rộng triển khai Graviton trên nhiều [AWS Regions](https://aws.amazon.com/about-aws/global-infrastructure/regions_az/), việc lập kế hoạch cẩn thận sẽ giúp bạn cân nhắc các yếu tố về khả năng sẵn có của loại instance theo từng vùng và tối ưu hóa năng lực. Bài viết này hướng dẫn cách triển khai các chiến lược cấu hình nâng cao cho các Graviton-enabled [EC2 Auto Scaling](https://aws.amazon.com/ec2/autoscaling/) groups trên nhiều Regions, giúp bạn tối đa hóa khả năng sẵn có của instance, giảm chi phí và duy trì hiệu suất ứng dụng nhất quán ngay cả ở các Regions có hạn chế về loại instance Graviton.
 
-* Thế hệ 3 ([M6a](https://aws.amazon.com/ec2/instance-types/m6a/), [R6a](https://aws.amazon.com/ec2/instance-types/r6a/), [C6a](https://aws.amazon.com/ec2/instance-types/c6a/), [Hpc6a](https://aws.amazon.com/ec2/instance-types/hpc6a/)): Cân bằng tính toán, bộ nhớ và lưu trữ — phù hợp với phân tích dữ liệu, máy chủ web và tính toán hiệu năng cao.
+**Chiến lược linh hoạt loại instance** 
 
-* Thế hệ thứ 4 ([M7a](https://aws.amazon.com/ec2/instance-types/m7a/), [R7a](https://aws.amazon.com/ec2/instance-types/r7a/), [C7a](https://aws.amazon.com/ec2/instance-types/c7a/), [Hpc7a](https://aws.amazon.com/ec2/instance-types/hpc7a/)): Cung cấp hiệu suất tốt hơn tới 50% so với các thế hệ AMD trước đó. Các instance này giới thiệu hỗ trợ AVX‑512, bộ nhớ DDR5 và Simultaneous Multithreading (SMT) bị tắt; SMT là công nghệ cho phép một lõi vật lý chạy nhiều luồng cùng lúc; với SMT bị tắt, mỗi vCPU (virtual CPU) ánh xạ trực tiếp đến một lõi vật lý, điều này có thể cải thiện tính cô lập và nhất quán trong khối lượng công việc.
+Một trong những chiến lược hiệu quả nhất để tối đa hóa khả năng sẵn có của Graviton là linh hoạt sử dụng nhiều loại instance và family khác nhau. Instance families (như m7g, c7g, và r7g) nhóm các instance tương tự với các kích thước khác nhau, mỗi kích thước cung cấp tỉ lệ vCPU và bộ nhớ tăng dần. Khi cấu hình EC2 Auto Scaling groups, hãy cố gắng sử dụng ít nhất 10 loại instance thay vì giới hạn chỉ một hoặc hai loại cụ thể. EC2 Auto Scaling hỗ trợ sự linh hoạt này thông qua [mixed instances group](https://docs.aws.amazon.com/autoscaling/ec2/userguide/mixed-instances-groups-set-up-overview.html), cho phép bạn chỉ định nhiều loại instance trong cùng một group. Hãy xem ví dụ snippet [AWS CloudFormation](https://aws.amazon.com/cloudformation/) cho EC2 Auto Scaling group [MixedInstancesPolicy](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-autoscaling-autoscalinggroup.html cfn-autoscaling-autoscalinggroup-mixedinstancespolicy), trong đó chỉ định hai loại Graviton instance thuộc hai family khác nhau:
 
-### **Chọn loại instance Amazon EC2 dùng AMD EPYC phù hợp**
+"MixedInstancesPolicy": {
 
-Việc chọn loại instance Amazon EC2 dùng AMD EPYC phù hợp bắt đầu bằng việc hiểu cách ứng dụng của bạn sử dụng tài nguyên tính toán (compute), bộ nhớ, lưu trữ và mạng. Mỗi instance family được tối ưu hóa cho những đặc tính khối lượng công việc nhất định.
+  "Overrides": \[
 
-**Khối lượng công việc tính toán** 
+    {
 
-Những khối lượng này liên quan tới các phép tính quy mô lớn, mô phỏng, hoặc mã hóa, và thường cần thông lượng CPU cao và hỗ trợ tập lệnh nâng cao.
+      "InstanceType": "m7g.large"
 
-* Khuyến nghị: C7a, Hpc7a, C6a, Hpc6a
+    },
 
-* Tình huống dùng: điện toán khoa học, mô hình tài chính, chuyển mã media, mã hóa, inference ML
+    {
 
-**Big Data & Analytics**
+      "InstanceType": "c7g.xlarge"
 
-Ứng dụng xử lý và phân tích tập dữ liệu lớn hưởng lợi từ băng thông bộ nhớ cao và tỷ lệ tính toán‑bộ nhớ cân bằng.
+    }
 
-* Khuyến nghị: R7a, M7a, R6a, M6a
+  \]
 
-* Tình huống dùng: xử lý luồng, phân tích thời gian thực, công cụ business intelligence, caching phân tán
+}
 
-**Khối lượng công việc cơ sở dữ liệu** 
+Việc giới hạn lựa chọn này làm giảm đáng kể khả năng truy cập vào các capacity pools sẵn có. Giả sử workload này cần tối thiểu 2 vCPU và 8 GiB bộ nhớ, bạn có thể thêm tám loại Graviton instance bổ sung sau: m6g.large, m8g.large, m6gd.large, m7gd.large, m8gd.large, c6g.xlarge, c6gd.xlarge và c8g.xlarge. Điều này giúp bạn đáp ứng khuyến nghị về việc linh hoạt sử dụng 10 loại instance. Mặc dù một số loại instance này có mức giá khác nhau, bạn có thể quản lý các tác động về chi phí này thông qua các chiến lược phân bổ được thảo luận sau trong bài viết.
 
-Công việc database thường cần hiệu suất bộ nhớ ổn định và throughput I/O cao cho các hoạt động đọc/ghi.
+Để xác định hiệu quả tất cả các loại Graviton instance tương thích cho workload của bạn, bạn có thể sử dụng [GetInstanceTypesFromInstanceRequirements](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_GetInstanceTypesFromInstanceRequirements.html). Cách tiếp cận này loại bỏ nỗ lực thủ công trong việc nghiên cứu và chọn từng loại instance riêng lẻ.
 
-* Khuyến nghị: R7a, M7a, R6a, M6a
+aws ec2 get-instance-types-from-instance-requirements \\  
+\--architecture-types arm64 \\  
+\--virtualization-types hvm \\  
+\--instance-requirements '{"VCpuCount": {"Min": 2,"Max":8}, "MemoryMiB": {"Min": 8000}, "InstanceGenerations":\["current"\]}' \\  
+\--region us-east-1
 
-* Tình huống dùng: database quan hệ (MySQL, PostgreSQL), NoSQL (MongoDB, Cassandra), database trong bộ nhớ (Redis)
+Lệnh ví dụ này trả về hàng chục loại Graviton instance tương thích thuộc nhiều family khác nhau (c7g, c7gd, c7gn, m7g, m7gd, v.v.), từ đó mở rộng các tùy chọn capacity của bạn. Mixed instance policy của một EC2 Auto Scaling group có thể cho phép [tối đa 40 loại phiên bản](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_LaunchTemplateOverrides.html API_LaunchTemplateOverrides_Contents), nhờ đó bạn có nhiều không gian linh hoạt hơn nữa.
 
-**Web và máy chủ ứng dụng** 
+Sau khi mở rộng lựa chọn loại instance, bạn cần cấu hình cách EC2 Auto Scaling chọn giữa các loại instance sẵn có. Thuộc tính [OnDemandAllocationStrategy](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-autoscaling-autoscalinggroup-instancesdistribution.html cfn-autoscaling-autoscalinggroup-instancesdistribution-ondemandallocationstrategy) trong CloudFormation kiểm soát hành vi này, cung cấp hai cách tiếp cận: “lowest-price” và “prioritized”. Với chiến lược “lowest-price”, EC2 Auto Scaling sẽ khởi chạy các instance từ capacity pool có giá thấp nhất sẵn có:
 
-Những ứng dụng này xử lý các tải yêu cầu biến đổi và hưởng lợi từ sự cân bằng giữa tính toán, bộ nhớ và hiệu năng mạng.
+"OnDemandAllocationStrategy": "lowest-price"
 
-* Khuyến nghị: C7a, M7a, C6a, M6a
+Chiến lược này giúp quản lý chi phí khi bạn đã bao gồm nhiều loại instance khác nhau. Ngay cả khi đã mở rộng tính linh hoạt về loại instance, workloads của bạn sẽ tự động chọn phương án tiết kiệm chi phí nhất từ các **capacity pools** sẵn có. Ngoài ra, bạn có thể sử dụng chiến lược “prioritized” khi muốn kiểm soát nhiều hơn về loại instance nào được chọn trước:
 
-* Tình huống dùng: máy chủ web, hệ quản lý nội dung, nền tảng e‑commerce, các điểm cuối API
+"OnDemandAllocationStrategy": "prioritized"
 
-**AI/ML trên CPU**
+**Kỹ thuật thích ứng theo vùng (Regional adaptation techniques)** 
 
-Các tác vụ ML không cần GPU — như inference hoặc tiền xử lý — có thể chạy hiệu quả trên các instance dựa CPU.
+Không phải tất cả các AWS Regions đều có sẵn cùng loại Graviton instance. Sự khác biệt về khả năng sẵn có của loại instance giữa các vùng tạo ra thách thức khi triển khai ứng dụng một cách nhất quán trên nhiều AWS Regions. Để xử lý những khác biệt này, hãy mở rộng tính linh hoạt về loại instance vượt quá tối thiểu 10 loại, đảm bảo có đủ tùy chọn trong mỗi AWS Region mà bạn vận hành.
 
-* Khuyến nghị: M7a, R7a, C7a
+Để triển khai tính linh hoạt này trên các AWS Regions, bạn cần xác định loại Graviton instance nào có sẵn ở từng vùng mục tiêu. AWS cung cấp nhiều phương pháp để truy cập thông tin này: kiểm tra tài liệu [Amazon EC2 Instance Types by Region](https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-instance-regions.html) để có danh sách đầy đủ, sử dụng [DescribeInstanceTypeOfferings](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceTypeOfferings.html) Amazon EC2 API để xác định các loại có sẵn theo lập trình, hoặc truy cập trang [EC2 Instance Types page in the AWS Management Console](https://console.aws.amazon.com/ec2/home InstanceTypes:v=3).
 
-* Tình huống dùng: inference mô hình, xử lý ngôn ngữ tự nhiên, thị giác máy tính, hệ gợi ý
+Bạn cũng có thể chạy GetInstanceTypesFromInstanceRequirements API trên các AWS Regions khác nhau để hiểu sự khác biệt theo vùng. Ví dụ, chạy các truy vấn giống nhau ở US East (N. Virginia) và Asia Pacific (Taipei) cho thấy sự khác biệt đáng kể: hơn 70 loại instance tương thích ở US East (N. Virginia) và 27 loại ở Asia Pacific (Taipei).
 
-**High Performance Computing**
+\  Query for US East (N. Virginia)  
+aws ec2 get-instance-types-from-instance-requirements \\  
+\--architecture-types arm64 \\  
+\--virtualization-types hvm \\  
+\--instance-requirements '{"VCpuCount": {"Min": 2,"Max":8}, "MemoryMiB": {"Min": 8000}, "InstanceGenerations":\["current"\]}' \\  
+\--region us-east-1
 
-Những khối lượng công việc này cần nhiều lõi, băng thông bộ nhớ cao và mạng độ trễ thấp cho các tính toán liên kết chặt chẽ.
+\  Query for Asia Pacific (Taipei)  
+aws ec2 get-instance-types-from-instance-requirements \\  
+\--architecture-types arm64 \\  
+\--virtualization-types hvm \\  
+\--instance-requirements '{"VCpuCount": {"Min": 2,"Max":8}, "MemoryMiB": {"Min": 8000}, "InstanceGenerations":\["current"\]}' \\  
+\--region ap-east-2
 
-* Khuyến nghị: Hpc7a, Hpc6a, R7a, M7a
+Khi vận hành trên nhiều AWS Regions, hãy thiết kế một mixed instance policy duy nhất hoạt động ở tất cả các vùng bằng cách bao gồm các loại instance có sẵn ở tất cả các AWS Regions mà bạn đang hoạt động. Dựa trên kết quả truy vấn trước, bạn có thể bao gồm 10 loại instance sau có sẵn ở cả hai AWS Regions: m6g.large, m7g.large, m6gd.large, m7gd.large, c6g.xlarge, c7g.xlarge, m6g.xlarge, m7g.xlarge, c6gn.xlarge và m6gd.xlarge.
 
-* Tình huống dùng: động lực chất lỏng, genomics, phân tích địa chấn, mô phỏng kỹ thuật
+Bạn cũng nên triển khai EC2 Auto Scaling group của mình trên nhiều Availability Zones (AZs) để tăng khả năng chịu lỗi và truy cập vào các capacity pools sâu hơn. Để xác định các AZ có sẵn trong AWS Region của bạn, tham khảo tài liệu [Availability Zones](https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-availability-zones.html) hoặc kiểm tra [Amazon Virtual Private Cloud (Amazon VPC)](https://aws.amazon.com/vpc/) để xác định AZ nào đang được các subnet sử dụng thông qua [DescribeSubnets](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSubnets.html) Amazon EC2 API. Cấu hình EC2 Auto Scaling group để sử dụng tất cả các AZ có sẵn bằng cách sử dụng tham số [AvailabilityZones](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-autoscaling-autoscalinggroup.html cfn-autoscaling-autoscalinggroup-availabilityzones) trong CloudFormation AWS::AutoScaling::AutoScalingGroup:
 
-Việc phù hợp hóa loại instance với nhu cầu khối lượng công việc giúp cung cấp hiệu suất dự đoán được và hiệu quả chi phí. Các dịch vụ như [Amazon EC2 Auto Scaling](https://aws.amazon.com/ec2/autoscaling/) và [AWS Compute Optimizer](https://aws.amazon.com/compute-optimizer/) có thể hỗ trợ trong việc lựa chọn instance và ra quyết định scale liên tục.
+"AvailabilityZones": \[  
+  "us-west-2a",  
+  "us-west-2b",  
+  "us-west-2c",  
+  "us-west-2d",  
+\]
 
-### **Tối ưu hóa các instance Amazon EC2 dùng AMD EPYC**
+**Các phương pháp hay nhất để sử dụng EC2 Spot Instances với các phiên bản dựa trên Graviton**
 
-Các instance EC2 dùng bộ xử lý AMD EPYC thế hệ thứ 4 vận hành với kiến trúc “chiplet modular”, như minh họa trong hình dưới đây. Mỗi bộ xử lý bao gồm nhiều **Core Complex Dies (CCD)**, và mỗi CCD chứa một hoặc nhiều tổ hợp lõi (core complexes, gọi là CCX). Một CCX gom tối đa tám lõi vật lý, mỗi lõi có 1 MB bộ nhớ đệm L2 riêng và tám lõi đó cùng chia sẻ 32 MB bộ nhớ đệm L3. Các CCD này được kết nối với một die I/O trung tâm, chịu trách nhiệm quản lý bộ nhớ và liên kết giữa các chip.  
-![][image1]  
-(Biểu đồ 1: Sơ đồ của die CPU ‘Zen 4’ với 8 lõi mỗi die)
+Mặc dù tối ưu hóa khả năng sẵn có theo vùng và phân bổ AZ cung cấp nền tảng vững chắc, việc nâng cao chiến lược triển khai Graviton với cấu hình [Amazon EC2 Spot](https://aws.amazon.com/ec2/spot/) Instances đúng cách có thể cải thiện đáng kể hiệu quả chi phí mà không làm giảm độ tin cậy. Khi sử dụng Spot Instances với Graviton, bạn nên triển khai các chiến lược tối đa hóa cơ hội có được và duy trì capacity.
 
-Kiến trúc module của các bộ xử lý AMD EPYC thế hệ thứ 4 cho phép các instance như m7a.24xlarge và m7a.48xlarge hỗ trợ số lượng lõi cao — lên đến 96 lõi vật lý mỗi socket. Ví dụ:
+Đầu tiên, [Spot Instance Advisor](https://aws.amazon.com/ec2/spot/instance-advisor/) cung cấp thông tin hữu ích về tần suất gián đoạn của các loại instance khác nhau trên các AWS Regions. Sử dụng công cụ này để xác định các loại Graviton instance có tỉ lệ gián đoạn thấp hơn trong các vùng mục tiêu của bạn. Sau đó, mở rộng mixed instance group để bao gồm các loại instance này. Đặc biệt với workload sử dụng Spot Instances, hãy tối đa hóa tính linh hoạt về loại instance bằng cách chỉ định tối đa giới hạn 40 loại instance cho EC2 Auto Scaling groups mixed instance policies. Việc lựa chọn rộng rãi này tăng cơ hội tìm được Spot Instances capacity sẵn có.
 
-* m7a.24xlarge cung cấp 96 lõi vật lý từ một socket đơn
+Ngoài việc chọn loại instance, chiến lược phân bổ mà bạn chọn ảnh hưởng đáng kể đến khả năng duy trì Spot Instances capacity. Cấu hình chiến lược phân bổ Spot bằng cách sử dụng thuộc tính [AWS::AutoScaling::AutoScalingGroup InstancesDistribution](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-autoscaling-autoscalinggroup-instancesdistribution.html) với tham số [SpotAllocationStrategy](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-autoscaling-autoscalinggroup-instancesdistribution.html cfn-autoscaling-autoscalinggroup-instancesdistribution-spotallocationstrategy) đặt là[price-capacity-optimized](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-fleet-allocation-strategy.html ec2-fleet-allocation-strategies-for-spot-instances), để chọn các Spot pools có nguy cơ gián đoạn thấp nhất đồng thời vẫn cân nhắc giá:
 
-* m7a.48xlarge trải rộng hai socket, cung cấp 192 lõi vật lý
+"InstancesDistribution": {  
+  "SpotAllocationStrategy": "price-capacity-optimized"  
+}
 
-Hiểu cách các kích cỡ instance của EC2 ánh xạ tới bố cục bộ xử lý vật lý có thể giúp bạn tối ưu hóa hiệu suất và tính nhất quán bộ nhớ đệm (cache). Những khối lượng công việc liên quan tới truy cập bộ nhớ chia sẻ hoặc đồng bộ hóa luồng — như HPC hoặc database trong bộ nhớ — có thể hưởng lợi khi chọn kích cỡ instance giảm thiểu giao tiếp giữa socket và tận dụng hiệu quả bộ nhớ đệm L3.
+Đối với các workload có thể hưởng lợi từ thời gian nhiều hơn so với thông báo gián đoạn Spot chuẩn hai phút, hãy bật [Capacity Rebalancing](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-fleet-capacity-rebalance.html). Tính năng này, được cấu hình thông qua thuộc tính [AWS::AutoScaling::AutoScalingGroup CapacityRebalance](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-autoscaling-autoscalinggroup.html cfn-autoscaling-autoscalinggroup-capacityrebalance), cho phép EC2 Auto Scaling phản ứng chủ động theo các khuyến nghị rebalancing bằng cách khởi chạy một Spot Instance mới trước khi instance đang chạy nhận thông báo gián đoạn Spot hai phút, từ đó cung cấp thêm thời gian để thực hiện chuyển đổi một cách mượt mà:
 
-![][image2]
+"CapacityRebalance": true
 
-(Biểu đồ 2: Bố cục CPU ‘EPYC Chiplet’)
+Để đạt tính linh hoạt tối đa và truy cập capacity tốt hơn, hãy xem xét việc kết hợp cả kiến trúc **x86** và **ARM** trong **launch templates**. Mặc dù các **Graviton capacity pools** mới hơn và đôi khi nhỏ hơn so với x86, cách tiếp cận kiến trúc hỗn hợp đảm bảo bạn vẫn có thể khởi chạy instance ngay cả khi một kiến trúc có sẵn hạn chế. Để hướng dẫn chi tiết, tham khảo bài viết AWS:[Supporting AWS Graviton2 and x86 instance types in the same Auto Scaling group](https://aws.amazon.com/blogs/compute/supporting-aws-graviton2-and-x86-instance-types-in-the-same-auto-scaling-group/).
 
-Các instance EC2 dùng AMD EPYC thế hệ thứ 4 hoạt động với SMT bị tắt. Trong cấu hình này, mỗi vCPU ánh xạ trực tiếp tới một lõi vật lý, loại bỏ chia sẻ tài nguyên như đơn vị thực thi và bộ nhớ đệm giữa các luồng “chị/em”. Thiết kế này có thể giảm nhiễu nội lõi và giúp cung cấp hiệu suất ổn định hơn cho các khối lượng công việc nhất định. Người dùng có thể cô lập luồng ở cấp lõi và quan sát độ biến thiên thấp hơn và thông lượng ổn định hơn cho các khối lượng như HPC, inference ML và database giao dịch.
+**Lựa chọn loại instance dựa trên thuộc tính (Attribute-based instance type selection)**
 
-### **CPU optimizations**
+Mặc dù mixed instance policies với danh sách loại instance cụ thể cung cấp sự linh hoạt tuyệt vời, AWS còn cung cấp một phương pháp mạnh mẽ hơn cho việc lựa chọn động loại instance: [attribute-based instance type selection](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-fleet-attribute-based-instance-type-selection.html). Phương pháp này giúp quản lý dễ dàng hơn bằng cách cho phép bạn chỉ định các thuộc tính mà ứng dụng cần thay vì loại instance cụ thể, tự động thích ứng với các loại instance mới và xử lý sự khác biệt về sẵn có theo vùng.
 
-Các công cụ như [htop](https://htop.dev/) giúp xác định mẫu sử dụng CPU, trung bình tải hệ thống, và tiêu thụ tài nguyên theo tiến trình. Việc sử dụng CPU nên được đánh giá trong ngữ cảnh khối lượng công việc và yêu cầu hiệu năng. Nếu mức sử dụng liên tục đạt 100%, điều đó có thể chỉ ra rằng khối lượng công việc bị **CPU-bound** và chưa được cân bằng tối ưu. Trước khi thay đổi kích thước instance, bật Auto Scaling, hoặc chuyển đổi giữa các gia đình instance, cần thực hiện đánh giá các cơ hội tuning có thể cải thiện hiệu suất mà không thay đổi hạ tầng. Trung bình tải (load averages) vượt thường xuyên hơn số lượng vCPU cũng có thể là dấu hiệu bão hòa tính toán và có thể yêu cầu tối ưu tiếp.
+Bạn có thể triển khai lựa chọn loại instance dựa trên thuộc tính trong EC2 Launch Template thông qua thuộc tính [AWS::EC2::LaunchTemplate InstanceRequirements](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-ec2-launchtemplate-instancerequirements.html):
 
-### **Sử dụng bộ nhớ đệm L3** 
+{
 
-[L3 cache](https://www.techtarget.com/searchstorage/definition/cache-memory) là lớp nhớ nhanh chia sẻ được sử dụng bởi một nhóm lõi CPU. Trên EC2 dựa AMD, các lõi được tổ chức thành các **slice bộ nhớ đệm L3**, mỗi slice được chia sẻ bởi một tập hợp lõi trên cùng một socket. Các luồng được lập lịch trong cùng slice có thể truy cập dữ liệu chia sẻ hiệu quả hơn, giảm độ trễ bộ nhớ. Trên các instance AMD thế hệ 4 như m7a.2xlarge hoặc r7a.2xlarge, tất cả vCPU thường ánh xạ tới các lõi nằm trong cùng một slice L3, đảm bảo tính nhất quán địa phương bộ nhớ đệm. Đối với các kích cỡ lớn hơn (ví dụ m7a.8xlarge trở lên), **thread pinning** — gán các luồng tới lõi vật lý cụ thể — có thể giúp duy trì tính địa phương này. Thread pinning có thể giảm biến động hiệu suất trong các khối lượng với mẫu truy cập bộ nhớ chia sẻ thường xuyên.
+  "InstanceRequirements": {
 
-Bạn có thể pin luồng với lệnh:
+    "AcceleratorCount": {
 
-**taskset \-c 0-3 ./your\_application**
+      "Max": 0
 
-Ví dụ này pin ứng dụng của bạn vào các lõi CPU 0 đến 3\. Để xác định lõi nào chia sẻ cùng vùng bộ nhớ đệm L3, sử dụng các công cụ như lscpu hoặc lstopo để kiểm tra topology CPU hệ thống. Gom các luồng liên quan vào các lõi cùng chia sẻ L3 cache có thể cải thiện tính nhất quán hiệu suất cho các khối lượng có truy cập bộ nhớ chia sẻ.
+    },
 
-### **Tối ưu container Docker**
+    "BareMetal": "excluded",
 
-Trong môi trường container chạy trên các instance EC2 dựa AMD, điều chỉnh các thiết lập liên quan CPU có thể cải thiện tính nhất quán và hiệu quả khối lượng công việc — đặc biệt cho các ứng dụng tính toán nặng hoặc nhạy độ trễ. Mặc dù cấu hình mặc định hoạt động cho nhiều kịch bản tổng quát, một số workload có thể lợi từ việc kiểm soát rõ ràng cách phân bổ tài nguyên CPU. Theo mặc định, runtime container như [Docker](https://docs.docker.com/engine/containers/resource_constraints/) cho phép hệ điều hành lập lịch container trên bất kỳ lõi CPU nào sẵn có. Việc này có thể dẫn đến biến thiên hiệu suất khi container di chuyển giữa các lõi không chia sẻ cache. Để giảm biến thiên và cải thiện hiệu quả cache, container có thể được pin vào các lõi cụ thể bằng flag \--cpuset-cpus.
+    "BaselinePerformanceFactors": {
 
-**docker run \--cpuset-cpus="1,3" my-container**
+      "Cpu": {
 
-Thiết lập này giới hạn container chỉ dùng các lõi đã chỉ định. Trong ví dụ này, lõi 1 và 3 được dùng để minh hoạ. Lựa chọn lõi thực tế nên dựa trên topology CPU để đảm bảo lập lịch hiệu quả bộ nhớ đệm. Pin container vào các lõi chia sẻ bộ nhớ đệm L3 có thể giảm overhead lập lịch và cải thiện tính nhất quán cho các workload có mẫu truy cập bộ nhớ chia sẻ.
+        "References": \[
 
-### **Thiết lập governor tần số CPU**
+          {
 
-Một số hệ điều hành điều chỉnh tần số CPU động để tiết kiệm điện. Thông thường điều này được kiểm soát bởi thiết lập gọi là [CPU frequency governor](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/processor_state_control.html). Mặc dù hành vi này hiệu quả cho các workload tổng quát, nó có thể gây độ trễ hoặc biến thiên hiệu suất trong môi trường nhạy với tính toán. Với các workload cần hiệu suất CPU ổn định cao — như xử lý dữ liệu thông lượng lớn, mô phỏng, hoặc ứng dụng thời gian thực — chúng tôi khuyến nghị đặt governor của CPU về **performance mode**. Điều này đảm bảo CPU chạy ở tần số tối đa khi chịu tải, tránh thời gian tăng tốc từ trạng thái năng lượng thấp.
+            "InstanceFamily": "c7g"
 
-Bạn có thể áp dụng thiết lập này trên các instance bare metal hoặc [Amazon EC2 Dedicated Hosts](https://aws.amazon.com/ec2/dedicated-hosts/) bằng lệnh:
+          }
 
-**sudo cpupower frequency-set \-g performance**
+        \]
 
-Trước khi áp dụng, hãy cân nhắc benchmark hiệu suất workload với các governor khác (như ondemand hoặc schedutil) để đảm bảo rằng chế độ performance mang lại lợi ích đo được mà không đánh đổi điện năng không cần thiết.
+      }
 
-### **Dùng flag compiler kiến trúc cụ thể**
+    },
 
-Khi biên dịch các ứng dụng C hoặc C++ nhạy hiệu suất, các flag kiến trúc cụ thể như \-march=znverX có thể mở khóa tối ưu hóa dành riêng cho AMD EPYC, bao gồm cải thiện vectorization và hiệu suất số thực. Dù điều này có lợi cho workload tính toán nặng, nó có thể giảm tính di động giữa các kiến trúc. Để cân bằng giữa hiệu suất và tính linh hoạt, cân nhắc dùng phát hiện tính năng thời chạy (runtime feature detection) và dispatching — cách nhiều thư viện tối ưu dùng để thích ứng hành vi dựa trên CPU nền tảng.
+    "InstanceGenerations": \[
 
-Trước khi dùng các flag này, xác minh rằng phiên bản compiler của bạn hỗ trợ chúng và đảm bảo kiến trúc instance EC2 đích phù hợp với flag chỉ định. Ví dụ, một binary biên dịch với \-march=znver4 có thể lỗi chạy với lỗi “illegal instruction” (SIGILL) nếu chạy trên các instance thế hệ trước như M5a. Bảng dưới đây mô tả các flag phù hợp và phiên bản compiler tối thiểu hỗ trợ cho mỗi thế hệ AMD EPYC:
+      "current"
 
-| Thế hệ AMD EPYC | Flag \-march | Phiên bản GCC tối thiểu | Phiên bản LLVM/Clang tối thiểu |
-| ----- | ----- | ----- | ----- |
-| Thế hệ 4 (ví dụ M7a) | znver4 | GCC 12 | Clang 15 |
-| Thế hệ 3 (ví dụ M6a) | znver3 | GCC 11 | Clang 13 |
-| Thế hệ 2 (ví dụ M5a) | znver2 | GCC 9 | Clang 11 |
+    \],
 
-Các flag sau được hỗ trợ cho GCC 11+ hoặc LLVM Clang 13+:
+    "MemoryMiB": {
 
-* Cho EPYC thế hệ 4 (M7a, R7a, C7a, Hpc7a): \-march=znver4
+      "Min": 8000
 
-* Cho EPYC thế hệ 3 (M6a, R6a, C6a): \-march=znver3
+    },
 
-* Cho EPYC thế hệ 2 (M5a, R5a, C5a): \-march=znver2
+    "VCpuCount": {
 
-### **Khi nào bật AVX‑512 và VNNI**
+      "Min": 4
 
-Các instance EC2 dùng AMD EPYC thế hệ 4 hỗ trợ các tập lệnh SIMD tiên tiến như AVX2, AVX‑512 và VNNI. Những tập lệnh này có thể cải thiện thông lượng cho các workload vector nặng như inference ML, xử lý hình ảnh hoặc mô phỏng khoa học. Tuy nhiên, những flag này là đặc trưng theo thế hệ — việc cố chạy các binary được biên dịch với AVX‑512 trên instance không hỗ trợ (ví dụ thế hệ 2 như M5a) có thể gây lỗi thời gian chạy như “illegal instruction” (SIGILL).
+    }
 
-Khi biên dịch mã C hoặc C++:
+  }
 
-**gcc \-mavx2 \-mavx512f \-O2 your\_program.c \-o your\_program**
+}
 
-Để hiểu rõ hơn tối ưu hóa nào được áp dụng, dùng:
+[BaselinePerformanceFactors](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-ec2-launchtemplate-baselineperformancefactors.html) trong AWS::EC2::LaunchTemplate InstanceRequirements đảm bảo [performance protection](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-fleet-attribute-based-instance-type-selection.html ec2fleet-abis-performance-protection). Tính năng này đảm bảo EC2 Auto Scaling group sử dụng các loại instance đạt hoặc vượt mức hiệu suất cơ bản đã định. Khi bạn chỉ định một instance family như “c7g” làm tham chiếu cơ sở, Amazon EC2 sẽ tự động loại trừ các loại instance dưới mức hiệu suất này, ngay cả khi chúng phù hợp với các thuộc tính khác đã chỉ định. Với triển khai Graviton, việc chỉ định “c7g” đảm bảo chỉ chọn các loại instance có hiệu suất tương đương hoặc tốt hơn Graviton3 processors.
 
-**\-ftree-vectorizer-verbose=2 \-fopt-info-vec-missed**
+Lựa chọn loại instance dựa trên thuộc tính cũng cho phép chỉ định các loại instance trong template mà có thể chưa có sẵn trong một AWS Region bằng cách sử dụng [AllowedInstanceTypes](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-ec2-launchtemplate-instancerequirements.html cfn-ec2-launchtemplate-instancerequirements-allowedinstancetypes):
 
-Cách này giúp xác định các vòng lặp hưởng lợi từ vectorization và những vòng lặp không. Chỉ bật các tối ưu hóa này nếu workload của bạn hưởng lợi và bạn đã xác thực tính tương thích với thế hệ instance đang dùng. Tránh áp dụng flag AVX một cách bừa bãi, vì có thể làm giảm tính di động và tăng độ phức tạp binary.
+{
 
-### **Thư viện tối ưu CPU của AMD (AMD Optimizing CPU Libraries – AOCL)**
+  "AllowedInstanceTypes": \[
 
-Thư viện [AMD Optimizing CPU Libraries (AOCL)](https://www.amd.com/en/developer/aocl.html) cung cấp các thư viện toán học được tinh chỉnh hiệu năng dành riêng cho các bộ xử lý AMD EPYC. Những thư viện này bao gồm các triển khai tối ưu của các hàm hay dùng trong khoa học, kỹ thuật và workload ML. Bạn có thể liên kết ứng dụng của bạn với AOCL để sử dụng các tối ưu phần cứng mà không cần viết lại mã. AOCL gồm các thư viện cho toán vector, scalar, tạo số ngẫu nhiên, FFT, BLAS và LAPACK, trong số những cái khác.
+    "m6g.large",
 
-### **Cấu hình AOCL**
+    "m7g.large",
 
-Gán biến môi trường AOCL\_ROOT trỏ tới thư mục cài đặt:
+    "m8g.large"
 
-**export AOCL\_ROOT=/path/to/aocl**
+  \]
 
-Biên dịch ứng dụng với đường dẫn include và library tương ứng:
+}
 
-**gcc \-I$AOCL\_ROOT/include \-L$AOCL\_ROOT/lib \-lamdlibm \-lm your\_program.c \-o your\_program**
+Cách tiếp cận này giúp EC2 Auto Scaling group sử dụng các loại instance mới khi có sẵn và triển khai tự động ở các AWS Regions khác khi chúng trở nên khả dụng. Template duy nhất này đơn giản hóa việc triển khai và quản lý lựa chọn instance trong EC2 Auto Scaling groups trên nhiều vùng.
 
-Tối ưu toán vector và scalar: bạn có thể bật các tuning vector hóa hay scalar cụ thể cho workload:
+**Các lưu ý đặc biệt**
 
-**\# Tối ưu toán vector**  
-**gcc \-lamdlibm \-fveclib=AMDLIBM \-lm your\_program.c \-o your\_program**
+Những cân nhắc đặc biệt sau đây cần được lưu ý.
 
-**\# Toán scalar nhanh hơn**  
-**gcc \-lamdlibm \-fsclrlib=AMDLIBM \-lamdlibmfast \-lm your\_program.c \-o your\_program**
+**Kiểm thử hiệu suất với nhiều loại instance**
 
-Profiling runtime AOCL  
-AOCL hỗ trợ profiling runtime, giúp các nhà phát triển xác định các phép toán nào chiếm thời gian thực thi lớn. Để bật profiling:
+Khi triển khai linh hoạt loại instance, một mối quan tâm phổ biến là cần kiểm thử tất cả các loại instance với ứng dụng. Việc thử nghiệm 40 loại instance khác nhau là không thực tế đối với hầu hết tổ chức. Thay vào đó, hãy cân nhắc các cách tiếp cận sau để giảm khối lượng kiểm thử mà vẫn đảm bảo hiệu suất:
 
-**export AOCL\_PROFILE=1**  
-**./your\_program**
+1. Các Graviton instance families trong cùng thế hệ (ví dụ: c7g, m7g, r7g) sử dụng cùng một processor, cung cấp hiệu suất tương tự. Do đó, bạn có thể bao gồm nhiều loại instance từ cùng thế hệ sau khi kiểm thử một instance đại diện.
 
-Sau khi chạy, một file báo cáo tên aocl\_profile\_report.txt được sinh ra. Nó cung cấp phân tích theo hàm gồm số lần gọi, thời gian thực thi và việc sử dụng luồng. Các nhà phát triển có thể dùng nó để tập trung tối ưu hóa vào các phần có ảnh hưởng cao nhất.
+2. Cân nhắc bao gồm các biến thể trong family (ví dụ: c7gd với NVMe storage), vì chúng cung cấp khả năng chuyên biệt mà không thay đổi kiến trúc CPU cơ bản.
 
-### **Kết luận**
+3. Để đạt tính linh hoạt tối đa, hãy bao gồm nhiều thế hệ instance. 
 
-Bài viết này khảo sát cách chọn các loại instance Amazon EC2 dựa AMD phù hợp với đặc điểm khối lượng công việc, và cách áp dụng các kỹ thuật điều chỉnh tập trung vào việc sử dụng CPU, định vị luồng, hiệu quả cache và tối ưu thư viện toán học. Những phương pháp này đặc biệt quan trọng với khối lượng công việc bị giới hạn bởi CPU hoặc nhạy độ trễ, nơi hiệu suất ổn định là thiết yếu.
+Nếu ứng dụng chạy tốt trên Graviton3, thì rất có thể sẽ chạy tốt hơn trên Graviton4, cho phép bạn chỉ định cả hai trong EC2 Auto Scaling group.
 
-Sẵn sàng bắt đầu? Đăng nhập [AWS Management Console](https://aws.amazon.com/console/)  và khởi động các instance Amazon EC2 dùng AMD EPYC để bắt tay vào tối ưu hóa workload của bạn ngay hôm nay.
+**Đặt trước loại Graviton cụ thể**
 
-TAGS: [AMD](https://aws.amazon.com/blogs/compute/tag/amd/)
+Nếu workload cần một loại Graviton instance cụ thể, hãy sử dụng [EC2 Capacity Reservations](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-capacity-reservations.html), cho phép đặt trước capacity cho EC2 instance trong một AZ cụ thể trong bất kỳ khoảng thời gian nào.
+
+* On-Demand Capacity Reservations (ODCR) dành cho sử dụng ngay và không yêu cầu cam kết thời hạn.
+
+* Future-dated Capacity Reservations cho phép chỉ định thời điểm capacity cần sẵn có cùng với thời gian cam kết.
+
+   **Amazon EMR workloads**
+
+   Mặc dù các [Amazon EMR](https://aws.amazon.com/emr/) clusters chỉ tồn tại trong một AZ, bạn có thể sử dụng Amazon EMR instance fleets để chọn nhiều subnet qua các AZ khác nhau. Khi khởi tạo cluster, Amazon EMR tìm kiếm qua các subnet này để tìm instance và phương thức mua cụ thể, từ đó truy cập vào capacity pool sâu hơn. Với [Instance Fleets](https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-instance-fleet.html), bạn có thể chỉ định tới 30 loại EC2 instance cho mỗi nhóm node primary, core, và task, cải thiện đáng kể tính linh hoạt và khả năng sẵn có của instance. Tham khảo thêm: [Responding to Amazon EMR cluster insufficient instance capacity events](https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-events-response-insuff-capacity.html).
+
+**Kết luận**
+
+Bài viết này trình bày các chiến lược nâng cao để tối đa hóa việc áp dụng AWS Graviton trên nhiều AWS Regions. Bạn có thể sử dụng các ví dụ AWS CloudFormation được cung cấp như template cho triển khai của riêng mình. Theo các phương pháp này giúp duy trì hiệu suất ứng dụng nhất quán và tối đa hóa khả năng sẵn có của Graviton instance trên tất cả các AWS Regions mà bạn vận hành, ngay cả khi khả năng sẵn có của Graviton tiếp tục mở rộng trên hạ tầng toàn cầu của AWS. Để có hướng dẫn toàn diện về tối đa hóa triển khai Graviton, hãy tham khảo [AWS Graviton Technical Guide](https://github.com/aws/aws-graviton-getting-started).
+
+**Nguồn:[https://aws.amazon.com/vi/blogs/compute/implementing-advanced-aws-graviton-adoption-strategies-across-aws-regions/](https://aws.amazon.com/vi/blogs/compute/implementing-advanced-aws-graviton-adoption-strategies-across-aws-regions/)**
+
 
 [image1]: <data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAloAAAEnCAIAAAD+bXo/AAA/7klEQVR4Xu2deWwd13n2GbRFgRZFvy9B2ib5UsAIUHz9s/2nQFAUyR8xEBQFAiT4kBRB08CLbEWuLMeKbdmyLFmyFtvxbi22RImkSFMUKVKkdpG0qIVaSMpabS2ULEqyNkqiVl6KEuc7yciHL89zeO/MvWdmLsfPwQ+BPfOew9zH532eO3eZW9K2dQchhBDyFacEDxFCCCFfNRiHhBBCCOOQEEIIYRwSQgghbYxDQgghpI1xSAghhLQxDgkhhJA2xiEhhBDSxjgkhBBC2hiHhBBCSFuQOCx5YT4JCKq3uLSMZEFq9dBDj5KvFGyWUKC9oAURKyidFcahS1A93NNEIrVCuyTphs0SCrQXtCBiBaWzwjh0CaqHe5pIpFZolyTdsFlCgfaCFkSsoHRWGIcuQfVwTxOJ1ArtkqQbNkso0F7QgogVlM4K49AlqB7uaSKRWqFdknTDZgkF2gtaELGC0llhHLoE1cM9TSRSK7RLkm7YLKFAe0ELIlZQOiuMQ5egeriniURqhXZJ0g2bJRRoL2hBxApKZ4Vx6BJUD/c0kUit0C5JumGzhALtBS2IWEHprDAOXYLq4Z4mEqkV2iVJN2yWUKC9oAURKyidFcahS1A93NNEIrVCuyTphs0SCrQXtCBiBaWzwjh0CaqHe5pIpFZolyTdsFlCgfaCFkSsoHRWGIcuQfVwTxOJ1ArtkqQbNkso0F7QgogVlM4K49AlqB7uaSKRWqFdknTDZgkF2gtaELGC0llhHLoE1cM9TSRSK7RLkm7YLKFAe0ELIlZQOiuMQ5egeriniURqhXZJ0g2bJRRoL2hBxApKZ4Vx6BJUD/c0kUit0C5JumGzhALtBS2IWEHprDAOXYLq4Z4mEqkV2iVJN2yWUKC9oAURKyidFcahS1A93NNEIrVCuyTphs0SCrQXtCBiBaWzUhRx+CdTF/zpi+H4GixSDKB6uKeds2RpuQKPjwmkVmiXJN0k1SxjtF/QXtCCnIPem52x4sxWiiIOr2cGvJDjZ1UbcJ3EQfVwT7vlsyNHfUG2bW/Hszmpqa1vWrN+c3Prno6u3Xs6P27b2rhmXVlFFVZGhNQK7ZKkm6SaRQ08m5Nl5ZV+s2zb0a6aZfuOnQk2iw9akFu+9/pyrVjAMVac2UpRxKGpaIARUPT3dx28OXBH85Pl67DGIage7mm3XLhw0RckVBxWVdd0nzh57dr1kaIOj/adu5eWLceJzpFaoV2SdJNUs3hh4lA1i0o+1SxDQ0OiRYbHpUu98TeLD1qQW364uMF8tLlGQGdWSGdWYIFDUDoraY7Db8xaksesQkD1cE+7Jb843LipZaQw9hHDa0pSK7RLkm6SahYvTBwGbJbe3ss41y1oL2hBbokoDpUzn7t+y5iIZQ5B6awURRzObO0IgtTuBx824DoGKw92yylesP9UhYDq4Z52S35xuGJl3Uhh7GPX7j041y1SK7RLkm6SahYvTBwGbBYvzJr5gfaCFuSWB16rQB9GpAj5ObPHOAzOt+cuu3o746t26ebtv5ldijUGff336+VgHGqWV63Agz6dXXu1YhWV1VjgEKkV2iVJN0k1ixcyuhqb1uFBn6SaxQctKGakM6uRtzN7jMPgNH76uVbt59UbscDga+IF2J6+G51n77fBTyvXY7FDUD3c027JOw6zsGRpuVavYfUaLHCI1ArtkqSbpJrFCxmHWVDN0t/fH3+z+KAFxYx0Zi9ApI3mzEHmFgJKZ2UMxOEvazZryQKqNnHNNr94aGjoR6WNzd1n/H9lHAbEX1ONltYteNYhUiu0S5JukmoWz10cKi5euhR/s/igBcWM1lONukPdWGCgnVkN6cxeMGPPG5TOyhiIQ62XGv+5YhMWSP7sxYUdZ4Y3/V9O/0AdZByGRQu4pW0bnnWI1ArtkqSbpJrFcxqHPT2n428WH7SgOKk/fELrmdOZFdKZj/X2lQhn9hiHQfhF9Sat16pDJ7DAYEbL8Pu69+4N+QcZh2HRGm5qbsWzDpFaoV2SdJNUs3hO41AvG2ez+KAFxUZYZy4RFzbKmb+/sK6EcRgK4wNIWGDwF9M/0MUHzl/+82kL/eOMw1A0t27RMlbX1GKBQ6RWaJck3STVLJ67OEyqWXzQguIhD2c+cumqX2x15iCLFAJKZ6Wo41ArpUbD4ZNYYPDuzgO6/p/eW6GPMw6Ds2RpeW/vZX/Ny5evYIFbpFZolyTdJNUsnqM4lM3ias0soL2gBcWDfsieI2f2GIfZ+eYrpVqpK7cz35qzDGskD5Y26npvpLiMw+Ds6ejSGnZ27cUCt0it0C5JukmqWTxH0SWbxdWaWUB7QQuKgSic2TjuHJTOSpHGocotLVPjp59jAaLr++8M/t83q+QpxmFArly9/4KGP7DAOVIrtEuSbpJqFid7e1l5pegVr23rdqxxC9oLWlDUSGf2gmWYLs7izAGXyhuUzkoxxuE3Zi25cOO2lunbc3M8+1D8vHqjrp+0drtxlnEYEK2hGufOn8cC50it0C5JukmqWTwXcdh94mSCzeKDFhQ10pmv3s5ggUFAZ/YYh6NRuW/4xvNBZPrO3LIrX94ZYcvJs/gLI4zDIMhXfjKZTNSfC/CRWqFdknSTVLN4Bceh8TJp/M3igxYUNfJR/2plMxZIpDOrkcWZvQA+XwgonZWii8Ovi/tu9/VnlKBYIxm/uk3Xe6NoyjjMyZ07d4ZFLNgsgiO1Qrsk6SapZilwh69qGPFmWEdnF9ZEAdoLWlB0fF3cdzuIM5eMzM5HVn2MBYzDHJTtPaIF+nVtCxYY3BoY9vG1R05hQQnjMBdV1TVaQzW6u09gTURIrdAuSbpJqlm8AuJQNcvNm8O/xpBUs/igBUVHWGeWFzY5ndljHCJnr93U6qgnIFiA6Pqw48HSRlytQFA93NNuKTwOT/X0aE1Un1d+VIM10SG1Qrsk6SapZvHyjUPZLGok2Cw+aEERkYczP/BahZAqxIjHma0UVxxKUR6qa8UCRE4JNeIRHfe0WwqMw4OHDktN6huasCZSpFZolyTdJNUsXr5xKHrFGxwcxIJIQXtBC4oI+cADOjPjsCB+vKxJK7L+aA8WWBEyhhvxiI572i0FxqEUZGhoCAuiRmqFdknSTVLN4uUVh+07d8tm2RzxLdkQtBe0oCjIz5kZh/nzYcfwZYr1TddC4HuHSEPjGvX0Vmt+5OgxrIkBqRXaJUk3STWLFz4OZbPkMd0JaC9oQc6Rzuy5foeP7x1ayHLbAicwDpHbX/5Imz+WLC3HmhiQWqFdknSTVLN4IfNsxco60Sve2bNfYE0MoL2gBTlHPvCNx4JeGgaEcWhBCP6H92nntnXl5J/fq8F1RuOrEIe3bt06daonC/v3H9SzPv1s+ENiahw/3r1v/wErWyK+14bUCu2SpJukmkUNbJCx1Sw+aEFueal5j37gkTqzxzjUaEWCj4B3bvP5KsRhzqEq9axjx0fckD7LONVzGv+oQ6RWaJck3bBZQoH2ghbklnfa95sPMtfIz5k9xqFGiBl05Cc649CnODsc7ZKkGzZLKNBe0ILcwjg0waWdI8QMOvIT/V8XrcKzDkH1cE+7JXiHf/75KT3LeP0ny/jsyFH8ow6RWqFdknTDZgkF2gtakFsYhya4NBkNVA/3NJFIrdAuSbphs4QC7QUtiFhB6awwDl2C6uGeJhKpFdolSTdsllCgvaAFESsonRXGoUtQPdzTRCK1Qrsk6YbNEgq0F7QgYgWls8I4dAmqh3uaSKRWaJck3bBZQoH2ghZErKB0VhiHLkH1cE8TidQK7ZKkGzZLKNBe0IKIFZTOCuPQJage7mkikVqhXZJ0w2YJBdoLWhCxgtJZYRy6BNXDPU0kUiu0S5Ju2CyhQHtBCyJWUDorjEOXoHq4p4lEaoV2SdINmyUUaC9oQcQKSmeFcegSVA/3NJFIrdAuSbphs4QC7QUtiFhB6awwDl2C6uGeJhKpFdolSTdsllCgvaAFESsonRXGoUtQPdzTRCK1Qrsk6YbNEgq0F7QgYgWls8I4dAmqh3uaSKRWaJck3bBZQoH2ghZErKB0VhiHLkH1cE8TidQK7ZKkGzZLKNBe0IKIFZTOCuPQJage7mkikVqhXZJ0w2YJBdoLWhCxgtJZYRy6BNXDPU0kUiu0S5Ju2CyhQHtBCyJWUDorjEOXoHq4p4lEaoV2SdINmyUUaC9oQcQKSmeFcegSVA/3NJFIrdAuSbphs4QC7QUtiFhB6awwDl2C6uGeJhKpFdolSTdsllCgvaAFESsonZXccUhIPKBdknSDe4CQBGEckmIB7ZKkG9wDhCQI45AUC2iXJN3gHiAkQRiHpFhAuyTpBvcAIQnCOCTFAtolSTe4BwhJEMYhKRbQLkm6wT1ASIIwDkmxgHZJ0g3uAUIShHFIigW0S5JucA8QkiCMQ1IsoF2SdIN7gJAEyR2H+A1/MhqoHt5agkikVmiXJN2wWUKB9oIWRKygdFYYhy5B9XBPE4nUCu2SpBs2SyjQXtCCiBWUzgrj0CWoHu5pIpFaoV2SdMNmCQXaC1oQsYLSWWEcugTVwz1NJFIrtEuSbtgsoUB7QQsiVlA6K4xDl6B6uKeJRGqFdknSDZslFGgvaEHECkpnhXHoElQP9zSRSK3QLmPjd7977u23362oqFy/fuPWrdva23e1tHzc0LD6+edfxGLJY4/95r335peVVdTXN+zcuau9fef69RvKy5fPmfMqFmuefPK3nhjbt+/AGis3b96UE7FAIQtGG+fPX3j55Vk4N2bYLKFAe0ELIlZQOiuMQ5egeriniURqhXYZDwcPHjLjQoyentM4RTFt2vQzZ87cu3fPnPDl2LGjfcqUF3CiYvLkZ2VlJpPBGitylldAHKoxNDTU2NiE0+OEzRIKtBe0IGIFpbPCOHQJqod7mkikVmiX8ZA9Dv2xbdsOY9arr75uFtnGpEm/xb/40kszjDKsQSZNejrILKMm+5g6dRquEBtsllCgvaAFESsonRXGoUtQPdzTRCK1QruMhy1b2mRCDAwMqCsnecQfv//9m3IWhtPg4F28WNy1azf+xVmz5hhlv/vdc1hmUF1dY8zCmodEHLa371y06EPJBx8s/vjjLepiVNe0tW3FFWKDzRIKtBe0IGIFpbPCOHQJqod7mkikVmiX8bBgwaJVqxrmz184bdr0Rx99XB15+OFxKu2WLi3TsaFGa+vHxsRbt2598sk+NXH27LnPPfe8f/CVV+a0tHzc39+vJ/7P/0wyJuKVZX19g1GDnD59xpiFNQ+JOPzoo2o8q3jqqclXr/b5NceOHceC2GCzhALtBS2IWEHprDAOXYLq4Z4mEqkV2mXilJYu0+ly5coVLMiCnqjy0jj13nvz9Vk95syZh4toNm1qNifkG4cPiTy+e/cuno0NNkso0F7QgogVlM4K49AlqB7uaSKRWqFdJs7s2fN0umQyA1iQBT2xpmalceqDDxbrs3ps3boNF/FR16zXr98wJ3jeuHHjsVifzRKHM2fO9msYh2MItBe0IGIFpbPCOHQJqod7mkikVmiXifPMM1N0ugT//KePnlhXt8o4VVn5kX9q8eLSy5cv60oVk7iOoqtrr66Rl4lPPTUZi/VZxmHKQHtBCyJWUDorjEOXoHq4p4lEaoV2mTjPPfe8Tpf+/n4syIKeWF6+3Dilrhf9U/PnL2xqWqMrDx06jOsoBgfv6pqXXnpZ/7NKayzWZ7PE4euvv+HXqJXxbGywWUKB9oIWRKygdFYYhy5B9XBPE4nUCu0ycebMeVWnS6j3Dh9+eJyeuGDBIuNsff1q/9Q777w/ZcoLuvLevXu41EMi4fwvQep/tX5NQp/NEofLl1f5NeraFM/GBpslFGgvaEHECkpnhXHoElQP9zSRSK3QLhOnr+/+JzDVaGkxP1k6GioLT548mSVv9Auer732e/Wv8iOsWDxt2nR99skn//AtRv2v1k/f6LPWOJw69aXDhw/rmqoqS01ssFlCgfaCFkSsoHRWGIcuQfVwTxOJ1ArtMikeeeSxyZOfNb5o8corc7DSin4tVI2NGzdhgf6mo59nEyZM1PWzZpl/ZcOGjfqsf0T/6+uvj/gqpHH2zJmze/d+Ijl69JjxlUr/iyVJwWYJBdoLWhCxgtJZKYo4vJ4ZkC0aZPysagOukzioHu5pt3x25KgvyLbt7Xg2JzW19U1r1m9ubt3T0bV7T+fHbVsb16wrq6jCyoiQWqFdxsbIzWWODRs2qQs+nGVFhZCciwWKPXs6/LMvvfSyf0TX37p1S35e9K233tGnrl+/YRTjy7DybM5hvXyMk6SaRQ08m5Nl5ZV+s2zb0a6aZfuOnQk2iw9akFu+9/pysV8CjbHizFaKIg5NRQOMgKK/v+vgzYE7mp8sX4c1DkH1cE+75cKFi74goeKwqrqm+8TJa9eujxR1eLTv3L20bDlOdI7UCu0yNszHP3IsWvQhThkNOfHEiZNYoNi3b79foN/8u3z5ip4lQ04HpxqbNzcbf2Lx4lJcXJ8NMqZMmYorxEZSzeKFiUPVLCr5VLNY71WkxqVLvfE3iw9akFt+uLjBfLS5RkBnVkhnVmCBQ1A6KymPw/xm5Q2qh3vaLfnF4a7dwyY72ujru4YTnSO1QruMDfPBw+jo6Hz88Qk40aCubpWecvv2bX2rGoPDhz/1a5577v49vpua1uqJ+/cf0JV37tzRx6dPn+kf1EfwM6vyrLqaPH/+gkTmgT/6+vomTnwKF4mHpJrFCxOHAZultq4B57oF7QUtyC3RxeG/lw1/oNofWOMQlM5KUcThzNaOIEjtfvBhA65jsPJgt5ziBf5PlTeoHu5pt+QXhytW1o0Uxj527d6Dc90itUK7TJZx48bfuDH8g0o5v5Mg7wXqjfIyqc+pUz1+jfzi4PHjx3GuPvLRRyvwIH6jceSUUV8L/c1v/keXqQtTLIiHpJrFCxOHAZvFC7NmfqC9oAW55YHXKtCHESlCfs7sMQ5D8d+1LVo4pSYWGPyyZrOQ+v5gHGq8Pz6l7ejsatu6fcPGzStq6lasXKUWUdcQWq5MZgAnukVqhXaZOPKtOy9rwj399O9kZWdnF9ZovvjinF8mb2e6bFm5nu4feeGFaf6/3r17V/4yhi6z/kKTPpslDmXZ0NCQ9e42MZBUs3gho2twcFA1S3f3Cb9Z6lc3qWZZ3bRWNkvYNfMA7QUtKH6cOLPHOAzOt+cuu3r7/lPvSzdv/83sUqwx6Osf8VTdH4xDzfKqFXjQp1PcA6WishoLHCK1QrssBk6cOKnVwLM+48c/oS/41FD/nP2V1d7eXr9STdQHJ0yYqF8anTHjD7/Nu3btOv9f9+79RE73D6qxfv1GXFyfDRiHnnjNNmaSahYvZHQ1Nq3Dgz5JNYsPWlDMSGdWI29n9hiHATGeTWABMnHNNr9YPfP9UWljc/f9nwL4aeV6LHYIqod72i15x2F2/DXVaGndgmcdIrVCuywGGhruf2XeGyUON28ecXPtmTNnY42B/r0L4/jvf/+mf/zGjRtvv/2uXtP4OoQ+br3NqT4bPA6ff/5FLIiBpJrFCxmH2bl46ZK/ZpzN4oMWFDNaTzXqDuW+NNTOrIZ0Zi+YsecNSmdlDMTh5VvDv5XTe6sfCwz+8a2q/juDfv17Ow+oI4zDsPhrqtG2dTuedYjUCu2yGKivH/40AZ59CD6GgwXI3bv3b7pmHJf3spE3ZjPK9HHrjynqs4xDg4ji8FTPaX/NOJvFBy0oTv5uzlKtp3Lmv529FGsk0pm9P+Yf4zAcv6jepPVadegEFhjMaBl+X/fevSH/IOMwLFrDTc2teNYhUiu0y2Kgs7NLq2GcUheCAwPDX5ndsaMdpyPjxz8x2oIPQbh6f/g2/ZnRag4cOJhlheBxOHnys1gQA0k1i+c0DvWycTaLD1pQbIR15hJxKamc+fsL60oYh6FQTzd6xaWhejKCNQZ3xc+Rz23r8g8yDkNRuqxCa9i0dj0WOERqhXaZOOPGjZe/OGGcvX59xBc3A97hZeLEp/QUPHv8uPmhu+rqGqNGnzpy5AiuoM8GjMNbt27j2XhIqlk8d3GomkV/ojjOZvFBC4qHPJz5XxbU6np0Zo9xmBPj87hYYPAX0z/QxQfOX/7zaQv944zDUDS3btEyVtfUYoFDpFZol4nT3r5LS+GNTC+ZamqcPXsWp1tRl2J6Fp4tKxv+fKkHnyn10WdPnDiJK+izo8Xh449PqKur12WffWbJ1HhIqlk8d3GYVLP4oAXFQx7OfOTSVb/Y6sxBFikElM5K8cbhN18p1UpduZ351pxlWCN5sLRR13sjxWUcBmdPx/Brg51de7HALVIrtMsYsP4wvXVs3twiJ27btsOsGGWcOtUjJ7700gx9Cv//BEFPP3/+QpazQca5c+flp1tjJqlm8RzFoWwWV2tmAe0FLSgGonBm47hzUDorxRuH1fuPaaX+a2UzFhicuTb8c+G7T1+QpxiHAamta9Cf8vCi/+D44iKIw+rqGv14s4wjR44ar4XmHYezZt3/6V2v4Di0/uaUPhtkTJs2A1eIjaSaxXMUXbJZ+vszWOAWtBe0oBiIwpk9xuFofGPWkgs3bmuZvj03x7MPxc+rh+/6P2ntduMs4zAgWkM1zp0/jwXOkVqhXcbAggWLjh4dbm9j3LlzZ9++/ThL0dw8/O3j7MP4wMv06TP1KVw2CHr6xYuXspy1DvWIvvjinHpQwX+gIzqSahbPRRx2nzipV4u/WXzQgqJGOvPV2xksMAjozB7jcDQq9w3feD6ITN+ZW3bly6+Cbjl59mtQwDgMgnzlJ5PJRP1GiI/UCu0yNn7729/Nm/f6kiVLa2tXNTWtqatbVVVVrZLyscd+g8XEFUk1i1dwHBovk8bfLD5oQVEjH/Wvcl0aSmdWI4szewF8vhBQOivFGIdaIDXWfPY5FkiUxBuODd8Q5IHXKrCGcZiTTc2t8ob9GzY1Y00USK3QLkm6SapZvILjUDaL+mcsiAK0F7SgSPnJ8vu3SfICOHPJSGe+kbH8ZgXjMAdle49ogX5d24IFBrcGhm/5v/bIKSwoYRzmomrk+2fd3SewJiKkVmiXJN0k1SxeAXGomuXmzVuJN4sPWlB0hHXmr89aoutzOrPHOET+o3z4Z24CCiTr796719N3A9EFvbf69cF/+6AeVysQVA/3tFsKj8Nl5ZW9vcNfrbt46VI8P97mI7VCuyTpJqlm8fKNw+JpFh+0oIjIw5kfeK1C1+d0ZjVidmYrxRWHUp2H6lqxAJFTQo0HSxtxtQJB9XBPu6XAODx46LDUpL6hCWsiRWqFdknSTVLN4uUbh6JXvMHBQSyIFLQXtKCIkA88oDPLOAw14nFmK0UUhz9e1qQVWX+0BwusCBnDjXhExz3tlgLjUAoS21sgEqkV2iVJN0k1i5dXHLbv3C2bZXPEt2RD0F7QgqIgP2dmHObPX7+8+PSX187X+ge+O68Ma6y8unVvTk5dvX8zrZ095/XBf3ijElcrEFQP97RbConDTZtHfFVgT0cX1kSN1ArtkqSbpJrFCx+Hqlnkx2cSbxYftCDnSGdWI7gzf33WErTi0ZxZjZid2UpRxGGW2xY4gR+lQW5/+RtD/liytBxrYkBqhXZJ0k1SzeKFjMMVK+tEr3hnz36BNTGA9oIW5Bz5wDceC3ppGBB+lMaCfI5wPTOABQXCODSoqKzWgqtx+fIVrIkHqRXaJUk3STWLFyYOVbP0Xbsmm6WsogrLYgDtBS3ILX8140P9wJUz//2r5VhTCIxDC1qR4KPx09zfetF8FeIw51CVetYx+NmE0capntP4Rx0itUK7JOmGzRIKtBe0ILe8077ffJC5Rn7O7DEONULMoCM/0RmHPsXZ4WiXJN2wWUKB9oIW5BbGoQku7RwhZtCRn+iMQ5/i7HC0S5Ju2CyhQHtBC3IL49AElyajgerhniYSqRXaJUk3bJZQoL2gBRErKJ0VxqFLUD3c00QitUK7JOmGzRIKtBe0IGIFpbPCOHQJqod7mkikVmiXJN2wWUKB9oIWRKygdFYYhy5B9XBPE4nUCu2SpBs2SyjQXtCCiBWUzgrj0CWoHu5pIpFaoV2SdMNmCQXaC1oQsYLSWWEcugTVwz1NJFIrtEuSbtgsoUB7QQsiVlA6K4xDl6B6uKeJRGqFdknSDZslFGgvaEHECkpnhXHoElQP9zSRSK3QLkm6YbOEAu0FLYhYQemsMA5dgurhniYSqRXa5VjkyJHhHw3/6KNqLMjO22+/W1FRuX79xq1bt+3atbul5eOGhtXPP/8iVqYANkso0F7QgogVlM4K49AlqB7uaSKRWqFdjkXyjsODBw/1j/yZETl6ek6/+eY7OGtMw2YJBdoLWhCxgtJZYRy6BNXDPU0kUiu0y7FIIXEo4s8+tm3bgRPHLmyWUKC9oAURKyidFcahS1A93NNEIrVCuxyL5B2HW7a0ieDzBgYGbt26LY/44/e/fxPnjlHYLKFAe0ELIlZQOiuMQ5egeriniURqhXY5Fsk7DhcsWLRjR/v8+QunTZv+6KOP+wcnTXp66dIykYZea+vHOHeMwmYJBdoLWhCxgtJZYRy6BNXDPU0kUiu0y7FI3nGYhdLSZXrNK1euYMEYhc0SCrQXtCBiBaWzwjh0CaqHe5pIpFZol2ORKOJw9ux5es1MZgALxihsllCgvaAFESsonRXGoUtQPdzTRCK1Qrsci0QRh888M0XEYQYLxihsllCgvaAFESsonRXGoUtQPdzTRCK1Qrsci0QRh88997xes7+/HwvGKGyWUKC9oAURKyidFcahS1A93NNEIrVCuxyLRBGHc+a8qtfke4dfWdBe0IKIFZTOCuPQJage7mkikVqhXY5FoojDvr4+vWZLCz9Z+hUF7QUtiFhB6azkjkNC4gHtciziNg4nT37W+KLFK6/MwbIxCu4BQhKEcUiKBbTLsUghcThr1mwRfOa4d+/eww+Pw1ljF9wDhCQI45AUC2iXY5Ho4nBw8C5OGdPgHiAkQRiHpFhAuxyLRBeHanR0dD7++AScOEbBPUBIgjAOSbGAdjkWKSQOrYwbN/7GjZt6zTRdI+IeICRBGIekWEC7HIs4j0PFW2+9o9dUAwvGKLgHCEkQxiEpFtAuxyJRxKFi27YdjENCIiVQHOLXOMhoGNLhl4eIRGqFdjkWiSgOGxpWMw4JiRTGoWMM6TAAiERqhXY5FokoDuvrG1Ifh7g9iMSQC82HWDF0ywLj0DGGdLiniURqhXY5FokoDjs7uxiHX3EMudB8iBVDtywwDh1jSId7mkikVmiXY5Eo4nDcuPGXL19mHH7FMeRC8yFWDN2ywDh0jCEd7mkikVqhXY5FZBx+8cW5/fsPZEHPevHF6efOnf/kk30ffrjklVfmPP30MxMmTJw48anZs+fV1w+/a6jG0NAQ/tExCpslFIZcaD7EiqFbFhiHjjGkwz1NJFIrtMuxiIzDnEPPeu+9+ea5UcbmzS34R8cobJZQGHKh+RArhm5ZYBw6xpAO9zSRSK3QLsci+cVhdXWNec42jhw5+uijj+MfHaOwWUJhyIXmQ6wYumWBcegYQzrc00QitUK7HIvs2dNhhtjoQ89asGDR0aPHMpmMWfHHcefOnX379qsa/HNjGjZLKAy50HyIFUO3LDAOHWNIh3uaSKRWaJdfQebNe33JkqW1tauamtYoqqqqVQo+9thvsDIFsFlCYciF5kOsGLplgXHoGEM63NNEIrVCuyTphs0SCkMuNB9ixdAtC4xDxxjS4Z4mEqkV2iVJN2yWUBhyofkQK4ZuWWAcOsaQDvc0kUit0C5JumGzhMKQC82HWDF0ywLj0DGGdLiniURqhXZJ0g2bJRSGXGg+xIqhWxYYh44xpMM9TSRSK7RLkm7YLKEw5ELzIVYM3bLAOHSMIR3uaSKRWqFdknTDZgmFIReaD7Fi6JYFxqFjDOlwTxOJ1ArtkqQbNksoDLnQfIgVQ7csMA4dY0iHe5pIpFZolyTdsFlCYciF5kOsGLploYji8E+mLvjTF0PwNVihGDCkwz3tliVLy33w1JhAaoV2SdJNzM0y1jHkQvMhVgzdslAscfi915dfzwyYN6fKOn5WtQHXSRxDOtzTDvnsyFGtBp7NybLyyqY16zc3t27b0b57T+f2HTsb16wrq6jCyuiQWqFdknQTZ7OkAEMuNB9ixdAtC8UShz9cPPxj3wFHwDh8f9fBmwN3ND9Zvg5rHGJIh3vaIRcuXNRq4NnRqKquUcl37dr1oaEhIefwuHSpd2nZcpwYBVIrtEuSbuJslsXpeimlLRZbVuDLctkpwhftDN2ykPI4PHf9Vh6zCsGQDve0Q/KLw42bWoQeo47e3ss41zlSK7RLkm6SapZt29uxwIr/3LH7xMkszx3bd+7GiVFgyIXm45yIbLkk3qsUQ7csFEscPvBaxczWjpxI3X/wYQOuYyDr/RHwv1beGNLhnnZIfnG4YmWd0CPbwLnOkVqhXZJ0k1SzBI/DXbsD/T5JbV0DznWOIReaj3MiisN/L1uTx6y8MXTLQrHEYRCu3h7++ZtLN29jgeS788r6+i0/lxOp7iUgPe5ph+QXh4rGpnV40Keza69es6KyGgvcIrVCuyTpJqlmCR6HwZ877tq9B6e7xZALzcc5UVylrDzYLev9EaktG7plYSzFoZTv59UbsUDS3H1GF/f03dD//NPK9VjsEEM63NMOyTsOs7BkaXl/f7+/ZsPqNVjgFqkV2iVJN0k1S/A4VAwODqop3d0nOjq7NmzcXL+6aUVN3eqmtWoRvaAamcwAznWLIReaTyL8d+3wmy8q6rDAQGg2PBiH4fhlzWatXd2hEKIPDQ39qLRR/yvjMCcXL13y12xp3YJn3SK1Qrsk6SapZgkVh41N65ZXrcDji0e+lOI57UErhlxoPvHz7bnL5It2fzO7FGsk351XJgQbHozDENQfPqGF+88Vm7BA8mcvLuw4c3/rH+vt+8vpH5SIdGQc5qSn57S/5pa2bXjWLVIrtEuSbpJqllBxmB393NFz2oNWDLnQfOJHP3YvwFXKxDXbdLG6SpEv4EVqy4ZuWRgDcfiL6k1aNTWwwGBGy/Br2d9fWOcf1Eci1b0EpMc97ZCI4lAvu6m5Fc+6RWqFdknSTVLN4jAOT3353NFz2oNWDLnQfGLm7+Ys1Y+991b/385eijWS/jt/eNnZH+/tPMA4zActmRq/rNmMBZIjl67q4gPnL+MikepeAtLjnnZIFHHY3LpFr1ldU4sFbpFaoV3Gz/z5C5ua1uzZ07F//wHF1q3bNm1qXrjwg5kzZ0+c+BTWR82jjz6u/3OogQVjmqSaxWEcRtGDo2HIheYTJ/IqZdWhE1hgoK9S7t0b8q9SGIeh+X8fbdSSNRw+iQUGuvjO3bv/9N4KPB6p7iUgPe5phzhvxSVLy3t7L7tdMztSK7TL2Hjssd+Uly/XrxKPNqZOnYZzI4Vx6Ioo4rB0WUUmM/zOGRa4xZALzSc21IWguhzUD1xdJmKN5F8W1N69d88vntvW5R9kHIbjm6+UXrx5W0v2rTnLsEbyoPjIzNTNu+QpfTxS3UtAetzTDnEeh3s6uvSCrtbMjtQK7TI2vvjinHzgo41nn30e50YK49AVUcShfCnFi75fDLnQfGLD+LIEFkj+YvoH8kW7P5+20D/OOAyHFkuNxk8/xwJJ1b5jurj/zuBoS0WqewlIj3vaIW7jcFl5pV5Njbat27HGOVIrtMsYeOKJJ/v6+uQDzzJwetQwDl0RRRyK/zJeZ9deLHCLIReaTzyoqxT9qK/czuS8ShnWaORVCuMwBN+YtUSLdfV25ttzQ4g+ae320c5GqnsJSI972iFu47D7xEm92rnz57EgCqRWaJcx0NCwWj9qNa5e7aurW/Xyy7MmT352woSJzz33wsyZs6ura5qbW/bt24/To4Zx6ArncVhbN3zHlv7+TMz3rGhLyJYV1fuHLzz+a2UzFkj+98zFunj36Qt/+uICfYpxGJSfLF+nlVrzWY7rwq+9MH/DsR6/+EbmzgOvVWCNXi1S3UtAetzTDnEYh/KWjOqfsSAipFZolzGgH7Uae/Z0YEGyMA5d4TYO5XNHr+DuC4ghF5pPDFy4MfzulbpKwQLJz6uHP/nhwWuqjMNAfH3WEnnr7e/MLcMayfjVbbr4kVUfY0EJ4zArqxqG33NVo6OzC2siQmqFdhkD8oFPmvQ0FiQL49AVbuNQ/DfxMpkMFkSBIReaTwzIB/6rXJeGV8Q39LecPGucZRwGomzvES2TB88pDFR23hq4k7NYF0SqewlIj3vaIU7isKq65ubN4Scf3d0nsCY6pFZolzGgH3hf3zU8G5xHHnlsypSpzz33/GOP/QbPZmHcuPGTJv12ypQX1P+qfzbOZo/DJ554Uk3ENbPwzDNT1JREvjSCJNUsBcbhpuZWvdTQ0NCGTc1YEwWGXGg+URP2RTtdbH3RjnGYm/8lXmvu68/8n3k5Lg2Vyro+7MDVCseQDve0QwqPw1M9919k9kflRzVYEylSK7TLGNCPPewrpQ8/PE4oZxlXr/a98cZbONFH3xjWOnSZEYdvv/1uR0enPKJHJjOAf0UxYcLE9vad9778mLsx9u3br2IYZ8VDUs2SdxwWz3PHtnhtuWTkVcqva1uwQCKvUtYeOYUFJYzDIJR2fqo1eqiuFQsMGIf+wLNBEGJ4g4ODWBA1Uiu0yxjQD19lBp7NjhDPPlQI4SzF+vUj3lPBoSuNOMw+VDH+rTNnzpp1I8f58xd++9vf4cQYSKpZ8o5D+a1cNWL7lWwfQy40n+j4j/K18oFjgYG05bv37vX03UDEen+4qY1/8N8+qMfVCsTQLQvFFYenhUbX+gewAFFPQ17dujcnetmdPef1QVytcAzpcE87pJA43LS5RX58Zk9HfO8XSqRWaJcxoBXILw57e3tbWz9uaGisqqqeP39haemyzz4b8VJ/eflyY5a6IJMFn3762ebNLZWVH61cWdfUtLanpyeTyejiLHGosvbcufPyiFrH+FtTp06TBYcPH37nnffVNav6fyWvF+/evWtMjIekmiW/ODx46LBeQT13rG9owppIMeRC84kO/cC9iK9SHixtxNUKxNAtC8UVh1KX0T4Ukx962UivyktAetzTDikkDv2frcl7uiukVmiXMaAVyCMOJ0yYiAcVs2bNuXPn/itF7e275KkpU6bqv6jG9OkzcbrEGocff7xFpdoTTzypCtSFnT7e1bXXmL537yf67IIFi+Qp9X/y6tXhL1zin46BpJoljzhs37lbT1djc3Mr1kSNIReaT0T8eFmTfuDrj/ZgAcI4LBR5T5mNxwKJHhy9MuNwMfyo6dmzX2BNPEit0C5jQIuQRxxmobZ2lb9sd/cJefzNN9/Wf3G0l1IlRhyqy7u3337XqNFnjx/vNk7JdyhxcXWNmOVsDCTVLHnEoXwpxQvZbq4w5ELziYK/fnmxfNHuu7k+zOET5EW7U1ev62X1i3b/8EYlrlYghm5ZKJY4fKl5j5amrz8zt60rJ//8Xg2uMxp68bTG4alTPVnYv/+gnvXpyFfzlIfu23/Aypbob0wjtUK7jAGtg9s4nDTpab2yfEtvzZrhz+a1tW3FiQbZP1nqo8+eOHFSHp85c7Y+pS4EcaKc+9RTk/Fs1CTVLKHiUD13vC2eVajnjkuWlmNZDBhyoflEgX7gnuurFH6UZlTeaR/xhkqQkfO2bRI9K1LdS0B63NMOkR2efahKPevY8RH3G8wyTvWcxj/qFqkV2mUM6AfrNg4nTJioV5ZxuG3bdn28vn41TjQoJA7nz1+oT+GFozF35sxX8GzUJNUsweOworK679o1PfHy5StlFVVYFg+GXGg+zvmrGR/qx349M/D3r5ZjTd4wDkeFcZgHjMPC0Q82rjjcoY/X1NTiRINC4nDRomEvO3ToME6Uc+fMmYdnoyapZrl16xa+giLRs4K/lKLAP+oWQy40H+dE+qId43BUYovDf120Cs86xJAO97RDgsfh55+f0rOMDs8yPjtyFP+oW6RWaJcxoB9sfnE4fvwTra1b9u3b39PTc/HiJc3168PvixRDHOYcX6k4zDn0rODPHb3o31A05ELzcU6ktsw4TD+GdLiniURqhXYZA7oh84hDlWfXr4/4+pR1MA5HI85mYRzmAePQAv4BMhqGdLiniURqhXYZA7ohw8bh88+/qOdmH0UShwcOHMzC1Kkv4cpRw2YJhSEXmg+xYuiWBcahYwzpcE8TidQK7TIGdFp0dnbh2SysX79Bz71+/frWrdtWrqzTNIi7ohdDHI723mGysFlCYciF5kOsGLplgXHoGEM63NNEIrVCu4wBHRinTp3Cs1nQ33Dv7j7x+OMTjLNBPkpTW1uHyxq4isMjR47gxMRhs4TCkAvNh1gxdMsC49AxhnS4p4lEaoV2GQM6MNR48cXpWDAa+r4z1lmjxaG6ItTH8SYySCFxKO+Ac/v2bZyYOGyWUBhyofkQK4ZuWWAcOsaQDvc0kUit0C5jQAeGB3eQyc6NGzf9WS+9NAPPPvHEk3pZGYfyiu3atdw/KVVIHI4bN17eSwUnJg6bJRSGXGg+xIqhWxYYh44xpMM9TSRSK7TLGJg37zUdGN4fb5zW2dlVVlb+zjvvv/rq6wsWLCovX75z567jx4/39Y24sYv+oaXr16+rsvHjn3jmmSlvv/1ub2+vXNAbGYePPz5BraNP9fScXry4dMaMWepq8qmnJqvruY8+qm5padX1hcShQr6Fqf6ueiz+fVYfeeQxdVH7xhtv7du33/9OCC4bA2yWUBhyofkQK4ZuWWAcOsaQDvc0kUit0C7jQb6fl33IWWVlQW9SLOMw4ERdXGAcqvQdnvzlGBy8a9yB0xtl5ahhs4TCkAvNh1gxdMsC49AxhnS4p4lEaoV2GQ8TJz5lZMNoQ35kxgiqLMOIQ3VlZvwwE47R/gr+n38oaxzKs9kHTowBNksoDLnQfIgVQ7csMA4dY0iHe5pIpFZol3Hy8suzduxoN1NCjKtXrz7zzHNyypQpU0+ePGmU7d37yezZcx/6MocGBgZU/uGfq6ioPHvW/sO8g4ODuuzhh8fduDH8TX9cR/8hNT75ZB+efegP/z9faG3dosvkuHjxYlvb1kWLPsRZMcBmCYUhF5oPsWLolgXGoWMM6XBPE4nUCu0yflTCvfvu+/X1DWvXrmtqWltdXbN4cemLL04fP/4JLPZ56613ampWNjauefXV1ydPfhYLsvDGG2+VlVWo6Qr1t5YsWTpt2oxx48ZjZeFMmzb9ww+XNDQ0+o/rzTffVs8AsCxO2CyhMORC8yFWDN2ywDh0jCEd7mkikVqhXZJ0w2YJhSEXmg+xYuiWBcahYwzpcE8TidQK7ZKkGzZLKAy50HyIFUO3LDAOHWNIh3uaSKRWaJck3bBZQmHIheZDrBi6ZYFx6BhDOtzTRCK1Qrsk6YbNEgpDLjQfYsXQLQuMQ8cY0uGeJhKpFdolSTdsllAYcqH5ECuGbllgHDrGkA73NJFIrdAuSbphs4TCkAvNh1gxdMsC49AxhnS4p4lEaoV2SdINmyUUhlxoPsSKoVsWGIeOMaTDPU0kUiu0S5Ju2CyhMORC8yFWDN2yECgOCYkBtEuSbnAPEJIgjENSLKBdknSDe4CQBGEckmIB7ZKkG9wDhCQI45AUC2iXJN3gHiAkQRiHpFhAuyTpBvcAIQnCOCTFAtolSTe4BwhJEMYhKRbQLkm6wT1ASIIwDkmxgHZJ0g3uAUISJHcc4rcayWigevhdWiKRWqFdknTDZgkF2gtaELGC0llhHLoE1cM9TSRSK7RLkm7YLKFAe0ELIlZQOiuMQ5egeriniURqhXZJ0g2bJRRoL2hBxApKZ4Vx6BJUD/c0kUit0C5JumGzhALtBS2IWEHprDAOXYLq4Z4mEqkV2iVJN2yWUKC9oAURKyidFcahS1A93NNEIrVCuyTphs0SCrQXtCBiBaWzwjh0CaqHe5pIpFZolyTdsFlCgfaCFkSsoHRWGIcuQfVwTxOJ1ArtkqQbNkso0F7QgogVlM4K49AlqB7uaSKRWqFdknTDZgkF2gtaELGC0llhHLoE1cM9TSRSK7RLkm7YLKFAe0ELIlZQOiuMQ5egeriniURqhXZJ0g2bJRRoL2hBxApKZ4Vx6BJUD/c0kUit0C5JumGzhALtBS2IWEHprDAOXYLq4Z4mEqkV2iVJN2yWUKC9oAURKyidFcahS1A93NNEIrVCuyTphs0SCrQXtCBiBaWzwjh0CaqHe5pIpFZolyTdsFlCgfaCFkSsoHRWGIcuQfVwTxOJ1ArtkqQbNkso0F7QgogVlM4K49AlqB7uaSKRWqFdknTDZgkF2gtaELGC0lkpiji8nhnwQo6fVW3AdRIH1cM97ZbPjhz1Bdm2vR3P5qSmtr5pzfrNza17Orp27+n8uG1r45p1ZRVVWBkRUiu0S5JukmoWNfBsTpaVV/rNsm1Hu2qW7Tt2JtgsPmhBbvne68u1YgHHWHFmK0URh6aiAUZA0d/fdfDmwB3NT5avwxqHoHq4p91y4cJFX5BQcVhVXdN94uS1a9dHijo82nfuXlq2HCc6R2qFdknSTVLN4oWJQ9UsKvlUswwNDYkWGR6XLvXG3yw+aEFu+eHiBvPR5hoBnVkhnVmBBQ5B6aykPA7zm5U3qB7uabfkF4e7dneMFMYy+vqu4UTnSK3QLkm6SapZvDBxGLBZausacK5b0F7QgtwSXRz+e9kaYyLWOASls1IUcTiztSMIUrsffNiA6xisPNgtp3iB/1PlDaqHe9ot+cXhipV1I4Wxj1279+Bct0it0C5JukmqWbwwcRiwWbwwa+YH2gtakFseeK0CfRiRIuTnzB7jMBT/XduihVNqYoHBL2s2C6nvD8ahxvvjU9qOzq62rds3bNy8oqZuxcpVapHz5y9ouTKZAZzoFqkV2iVJN0k1ixcyugYHB1WzdHef8JulfnWTapbVTWtls4RdMw/QXtCC4seJM3uMw+A0fvq5Vu3n1RuxwOBr4mXSnr4bnWfvt8FPK9djsUNQPdzTbsk7DrOwZGm5Vq9h9RoscIjUCu2SpJukmsVzF12qWfr7++NvFh+0oJiRzuwFiLTRnDnI3EJA6ayMgTg0nk1gATJxzTa/eGho6Eeljc3dZ/x/ZRwGxF9TjZbWLXjWIVIrtEuSbpJqFs9dHCouXroUf7P4oAXFjNZTjbpDuS8NtTOrIZ3ZC2bseYPSWRkDcXj51v0nX2r03urHAoN/fKuq/86gX//ezgPqCOMwLP6aarRt3Y5nHSK1Qrsk6SapZvGcxuGpntPxN4sPWlCc/N2cpVpP5cx/O3sp1kikM3t/zD/GYTh+Ub1J67Xq0AksMJjRMvy+7r17Q/5BxmFYtIabmlvxrEOkVmiXJN0k1Sye0zjUy8bZLD5oQbER1plLxKWkcubvL6wrYRyGQj3d6BWXhurJCNYY3L13T9fPbevyDzIOQ1G6rEJr2LR2PRY4RGqFdknSTVLN4rmLQ9UsmUwm/mbxQQuKhzyc+V8W1Op6dGaPcZgTrZQaDYdPYoHBuzsP6Pp/em+FPs44DM6SpeW9vZf9NS9fvoIFbpFaoV2SdJNUs3iO4lA2i6s1s4D2ghYUD/ohe46c2WMcZuebr5Rqpa7cznxrzjKskTxY2qjrvZHiMg6Ds6ejS2vY2bUXC9witUK7JOkmqWbxHEWXbBZXa2YB7QUtKAaicGbjuHNQOivFG4fV+49ppf5rZTMWGJy5dkPX7z59QZ5iHAaktq7h7t27WsaKymqscYvUCu2SpJukmsVzFF2yWfr7M1jgFrQXtKAYiMKZPcbhaHxj1pILN25rmb49N8ezD8XPqzfq+klrtxtnGYcB0Rqqce78eSxwjtQK7ZKkm6SaxXMRh90nTibYLD5oQVEjnfnq7QwWGAR0Zo9xOBqV+4ZvPB9Epu/MLVPX7H7xlpNnvwYFjMMgyFd+MplMdU0t1jhHaoV2SdJNUs3iFRyHxsuk8TeLD1pQ1MhH/atcl4bSmdXI4sxeAJ8vBJTOSjHGoRZIjTWffY4FEiXxhmM9uv6B1yqwhnGYk03NrfKG/Rs2NWNNFEit0C5JukmqWbyC41A2i/pnLIgCtBe0oEj5yfJ1+lHndOaSkc58I2P5zQrGYQ7K9h7RAv26tgULDG4N3NH1a4+cwoISxmEuqqprtIZqdHefwJqIkFqhXZJ0k1SzeAXEoWqWmzdvJd4sPmhB0RHWmb8+a4muz+nMHuMQ+Y/ytVqdgALJ+rv37vX03UB0Qe+tfn3w3z6ox9UKBNXDPe2WwuNwWXml/LD4xUuX4vnxNh+pFdolSTdJNYuXbxwWT7P4oAVFRB7O/MBrw19fzunM3h9vYRqnM1sprjiU6jxU14oFiJwSajxY2oirFQiqh3vaLQXG4cFDh6Um9Q1NWBMpUiu0S5JukmoWL984FL3iDQ4OYkGkoL2gBUWEfOABnVnGYagRjzNbKaI4/PGyJq3I+qM9WGBFyBhuxCM67mm3FBiHUpDY3gKRSK3QLkm6SapZvLzisH3nbtksmyO+JRuC9oIWFAX5OTPjMH/++uXFp7+8dr7WP/DdeWVYY+XVrXtzcurqdX/lnT3n9cF/eKMSVysQVA/3tFsKicNNm4d/qEyNPR1dWBM1Uiu0S5JukmoWL3wcqmaRH59JvFl80IKcI51ZjeDO/PVZS9CKR3NmNWJ2ZitFEYdZblvgBH6UBrn95Y+0+WPJ0nKsiQGpFdolSTdJNYsXMg5XrKwTveKdPfsF1sQA2gtakHPkA994LOilYUD4URoL8jnC9cwAFhQI49CgorJaC+7Fcm/S0ZBaoV2SdJNUs3hh4lA1S9+1a7JZyiqqsCwG0F7QgtzyVzM+1A9cOfPfv1qONYXAOLSgFQk+Gj/N/a0XzVchDnMOValnHTvebZ4eZZzqOY1/1CFSK7RLkm7YLKFAe0ELcss77fvNB5lr5OfMHuNQI8QMOvITnXHoU5wdjnZJ0g2bJRRoL2hBbmEcmuDSzhFiBh35ic449CnODke7JOmGzRIKtBe0ILcwDk1waTIaqB7uaSKRWqFdknTDZgkF2gtaELGC0llhHLoE1cM9TSRSK7RLkm7YLKFAe0ELIlZQOiuMQ5egeriniURqhXZJ0g2bJRRoL2hBxApKZ4Vx6BJUD/c0kUit0C5JumGzhALtBS2IWEHprDAOXYLq4Z4mEqkV2iVJN2yWUKC9oAURKyidFcahS1A93NNEIrVCuyTphs0SCrQXtCBiBaWzwjh0CaqHe5pIpFZolyTdsFlCgfaCFkSsoHRWGIcuQfVwTxOJ1ArtkqQbNkso0F7QgogVlM4K49AlqB7uaSKRWqFdknTDZgkF2gtaELGC0llhHLoE1cM9TSRSK7RLkm7YLKFAe0ELIlZQOiuMQ5egeriniURqhXZJ0g2bJRRoL2hBxApKZ4Vx6BJUD/c0kUit0C5JumGzhALtBS2IWEHprDAOXYLq4Z4mEqkV2iVJN2yWUKC9oAURKyidFcahS1A93NNEIrVCuyTphs0SCrQXtCBiBaWzwjh0CaqHe5pIpFZolyTdsFlCgfaCFkSsoHRWGIcuQfVwTxOJ1ArtkqQbNkso0F7QgogVlM4K49AlqB7uaSKRWqFdknTDZgkF2gtaELGC0llhHLoE1cM9TSRSK7RLkm7YLKFAe0ELIlZQOiuMQ5egeriniQQVI19ZcHsQCSqGFkSsoHRWcschIYQQknoYh4QQQgjjkBBCCGEcEkIIIW2MQ0IIIaSNcUgIIYS0MQ4JIYSQNsYhIYQQ0sY4JIQQQhQlHgcHBwcHx1d+/H98iYg6OquFMQAAAABJRU5ErkJggg==>
 
