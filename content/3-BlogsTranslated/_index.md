@@ -12,5 +12,4 @@ This section lists and introduces the blogs you have translated:
 
 ### [Blog 2 – From Theory to Practice Using Amazon Q Developer CLI to Create Customized AWS Projects](3.2-Blog2/)
 
-
 ### [Blog 3 – Deploying Advanced AWS Graviton Adoption Strategies Across AWS Regions](3.3-Blog3/)

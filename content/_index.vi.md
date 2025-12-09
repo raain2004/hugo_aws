@@ -1,8 +1,8 @@
 ---
-title: "Week 7 Worklog"
-weight: 7
+title: "Báo cáo thực tập"
+
+weight: 1
 chapter: false
-pre: "<b> 1.7. </b>"
 ---
 
 # Báo cáo thực tập
@@ -25,7 +25,7 @@ pre: "<b> 1.7. </b>"
 
 &emsp; **Thời gian thực tập:** Từ ngày 8/09/2025 đến ngày 12/11/2025
 
-![Ảnh đại diện của bạn](static\images\avatar.jpg)
+![Ảnh đại diện của bạn](/images/avatar.jpg)
 
 
 
